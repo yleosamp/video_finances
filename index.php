@@ -107,7 +107,7 @@
 
         <!-- Lista de Vídeos -->
         <div id="videosList" class="pt-8 space-y-4 hidden">
-            <h2 id="monthTitle" class="text-2xl px-2">Janeiro</h2>
+            <h2 id="monthTitle" class="text-2xl px-2"><strong>Janeiro</strong></h2>
             <div id="videosContainer" class="space-y-2">
                 <!-- Os vídeos serão inseridos aqui dinamicamente -->
             </div>
@@ -115,7 +115,7 @@
             <div class="h-px bg-[#313131]"></div>
             <!-- Total -->
             <div class="flex items-center justify-between bg-[#313131] px-6 py-3 rounded-md">
-                <span>TOTAL</span>
+                <span><strong>TOTAL</strong></span>
                 <div class="flex items-center gap-3">
                     <span id="totalValue" class="price-tag price-total" onclick="toggleTotalCurrency()">R$ 0</span>
                     <button id="totalToggle" class="w-8 h-8 bg-[#B974ED] rounded-md" onclick="toggleTotalView()"></button>
@@ -132,7 +132,12 @@
     <!-- Modal de Notas -->
     <div id="notesModal" class="modal">
         <div class="bg-[#313131] rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 class="text-xl mb-4">Adicione uma nota a este vídeo...</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl">Adicione uma nota a este vídeo...</h3>
+                <button onclick="deleteVideo()" class="bg-[#FF696C] text-white px-4 py-2 rounded-md hover:bg-[#FF696C]/90 transition-colors">
+                    Excluir
+                </button>
+            </div>
             <textarea id="videoNotes" class="w-full h-32 bg-[#202020] rounded-md p-4 mb-4"></textarea>
             <div class="flex items-center gap-3 bg-[#202020] p-3 rounded-md">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -165,6 +170,8 @@
         let exchangeRate = 5; // Taxa padrão para fallback
         let isLoginMode = true;
         let totalViewState = 'all'; // 'all', 'paid', 'unpaid'
+        let currentMonthIndex = new Date().getMonth(); // Inicializa com o mês atual (0-11)
+        const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
         async function getCurrencyRates() {
             try {
@@ -343,7 +350,7 @@
                 const isPaid = parseInt(video.is_paid);
                 
                 if (totalViewState === 'paid') return isPaid === 0;      // Mostra pagos (is_paid = 0)
-                if (totalViewState === 'unpaid') return isPaid === 1;    // Mostra não pagos (is_paid = 1)
+                if (totalViewState === 'unpaid') return isPaid === 1;    // Mostra no pagos (is_paid = 1)
                 return true;    // Mostra todos quando totalViewState === 'all'
             });
 
@@ -689,6 +696,41 @@
                 alert('Erro ao exportar para Excel');
             }
         });
+
+        async function deleteVideo() {
+            const videoId = document.getElementById('currentVideoId').value;
+            
+            if (!confirm('Tem certeza que deseja excluir este vídeo?')) {
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('action', 'delete_video');
+            formData.append('video_id', videoId);
+            
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Fechar modal
+                    document.getElementById('notesModal').classList.remove('active');
+                    
+                    // Recarregar lista de vídeos com o mês e ano atuais
+                    const month = currentMonthIndex + 1;
+                    const year = document.getElementById('yearSelect').value;
+                    await loadVideos(month, year);
+                } else {
+                    alert('Erro ao excluir o vídeo');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao excluir o vídeo');
+            }
+        }
     </script>
 </body>
 </html>

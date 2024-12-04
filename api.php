@@ -15,6 +15,36 @@ if (!isset($_SESSION['user_id']) && !in_array($action, ['login', 'register', 'ch
     die(json_encode(['success' => false, 'message' => 'Usuário não autenticado']));
 }
 
+if ($_POST['action'] === 'delete_video') {
+    if (!isset($_POST['video_id'])) {
+        die(json_encode(['success' => false, 'message' => 'ID do vídeo não fornecido']));
+    }
+    
+    $video_id = intval($_POST['video_id']);
+    
+    // Verificar se o vídeo pertence ao usuário
+    $stmt = $conn->prepare("SELECT user_id FROM videos WHERE id = ?");
+    $stmt->bind_param("i", $video_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $video = $result->fetch_assoc();
+    
+    if (!$video || $video['user_id'] != $_SESSION['user_id']) {
+        die(json_encode(['success' => false, 'message' => 'Vídeo não encontrado']));
+    }
+    
+    // Excluir o vídeo
+    $stmt = $conn->prepare("DELETE FROM videos WHERE id = ? AND user_id = ?");
+    $stmt->bind_param("ii", $video_id, $_SESSION['user_id']);
+    
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Erro ao excluir o vídeo']);
+    }
+    exit;
+}
+
 switch ($action) {
     case 'login':
         $email = $conn->real_escape_string($_POST['email']);
