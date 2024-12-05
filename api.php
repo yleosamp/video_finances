@@ -177,6 +177,51 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => 'Erro ao atualizar moeda']);
         }
         break;
+
+    case 'save_video_details':
+        $video_id = intval($_POST['video_id']);
+        $user_id = $_SESSION['user_id'];
+        $notes = $conn->real_escape_string($_POST['notes']);
+        $name = $conn->real_escape_string($_POST['name']);
+        $price = floatval($_POST['price']);
+        $currency = $_POST['currency'];
+        $people_count = intval($_POST['people_count']);
+        
+        $sql = "UPDATE videos SET 
+                notes = '$notes',
+                name = '$name',
+                price = $price,
+                currency = '$currency',
+                people_count = $people_count
+                WHERE id = $video_id AND user_id = $user_id";
+        
+        if ($conn->query($sql)) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Erro ao salvar alterações']);
+        }
+        break;
+
+    case 'update_order':
+        $orders = json_decode($_POST['orders'], true);
+        $success = true;
+        
+        foreach ($orders as $item) {
+            $id = intval($item['id']);
+            $order = intval($item['order']);
+            $user_id = $_SESSION['user_id'];
+            
+            $sql = "UPDATE videos SET `order` = $order 
+                    WHERE id = $id AND user_id = $user_id";
+            
+            if (!$conn->query($sql)) {
+                $success = false;
+                break;
+            }
+        }
+        
+        echo json_encode(['success' => $success]);
+        break;
 }
 
 $conn->close();

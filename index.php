@@ -54,6 +54,12 @@
         input[type=number] {
             -moz-appearance: textfield;
         }
+        .drag-line {
+            border: 2px dashed #3E62A5;
+            margin: 8px 0;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col p-8">
@@ -133,21 +139,48 @@
     <div id="notesModal" class="modal">
         <div class="bg-[#313131] rounded-lg p-6 w-full max-w-md mx-4">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl">Adicione uma nota a este vídeo...</h3>
+                <h3 class="text-xl">Editar vídeo</h3>
                 <button onclick="deleteVideo()" class="bg-[#FF696C] text-white px-4 py-2 rounded-md hover:bg-[#FF696C]/90 transition-colors">
                     Excluir
                 </button>
             </div>
-            <textarea id="videoNotes" class="w-full h-32 bg-[#202020] rounded-md p-4 mb-4"></textarea>
-            <div class="flex items-center gap-3 bg-[#202020] p-3 rounded-md">
+            
+            <!-- Campo Nome -->
+            <div class="mb-4">
+                <label class="text-sm text-gray-400 block mb-2">Nome do vídeo</label>
+                <input type="text" id="modalVideoName" class="w-full bg-[#202020] rounded-md p-4" placeholder="Nome do vídeo">
+            </div>
+            
+            <!-- Campos de Valor -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="text-sm text-gray-400 block mb-2">Valor em Real</label>
+                    <input type="number" step="0.01" id="modalBrlPrice" class="w-full bg-[#202020] rounded-md p-4" 
+                           placeholder="R$ 0.00" oninput="updateUsdFromBrl()">
+                </div>
+                <div>
+                    <label class="text-sm text-gray-400 block mb-2">Valor em Dólar</label>
+                    <input type="number" step="0.01" id="modalUsdPrice" class="w-full bg-[#202020] rounded-md p-4" 
+                           placeholder="$ 0.00" oninput="updateBrlFromUsd()">
+                </div>
+            </div>
+            
+            <!-- Campo Notas -->
+            <div class="mb-4">
+                <label class="text-sm text-gray-400 block mb-2">Notas</label>
+                <textarea id="videoNotes" class="w-full h-32 bg-[#202020] rounded-md p-4"></textarea>
+            </div>
+            
+            <!-- Pessoas -->
+            <div class="flex items-center gap-3 bg-[#202020] p-3 rounded-md mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
                 </svg>
-                <input id="modalPeopleCount" type="number" min="1" value="1" class="w-12 bg-transparent text-center" onchange="updateModalPrice()">
-                <span id="modalPrice" class="price-tag price-brl">R$ 1000</span>
+                <input id="modalPeopleCount" type="number" min="1" value="1" class="w-12 bg-transparent text-center">
             </div>
+            
             <input type="hidden" id="currentVideoId">
-            <button onclick="saveNotes()" class="w-full bg-[#3E62A5] text-[#ADC8FB] py-2 mt-4 rounded-md text-lg font-medium">
+            <button onclick="saveNotes()" class="w-full bg-[#3E62A5] text-[#ADC8FB] py-2 rounded-md text-lg font-medium">
                 Salvar
             </button>
         </div>
@@ -344,48 +377,62 @@
             let totalBRL = 0;
             let totalUSD = 0;
 
-            // Filtrar vídeos baseado no estado do total
+            // Ordenar vídeos pelo campo order antes de filtrar
+            videos.sort((a, b) => parseInt(a.order) - parseInt(b.order));
+
             const filteredVideos = videos.filter(video => {
-                // Converter para número para garantir a comparação correta
-                const isPaid = parseInt(video.is_paid);
-                
-                if (totalViewState === 'paid') return isPaid === 0;      // Mostra pagos (is_paid = 0)
-                if (totalViewState === 'unpaid') return isPaid === 1;    // Mostra no pagos (is_paid = 1)
-                return true;    // Mostra todos quando totalViewState === 'all'
+                if (totalViewState === 'paid') return parseInt(video.is_paid) === 0;
+                if (totalViewState === 'unpaid') return parseInt(video.is_paid) === 1;
+                return true;
             });
 
             filteredVideos.forEach(video => {
-                const currencySymbol = video.currency === 'USD' ? 'U$' : 'R$';
-                const priceClass = video.currency === 'USD' ? 'price-usd' : 'price-brl';
-                const isPaid = parseInt(video.is_paid) === 0;
-
+                // Calcula os totais corretamente
+                const price = parseFloat(video.price) || 0;
                 if (video.currency === 'USD') {
-                    totalUSD += parseFloat(video.price);
-                    totalBRL += parseFloat(video.price) * exchangeRate;
+                    totalUSD += price;
+                    totalBRL += price * exchangeRate;
                 } else {
-                    totalBRL += parseFloat(video.price);
-                    totalUSD += parseFloat(video.price) / exchangeRate;
+                    totalBRL += price;
+                    totalUSD += price / exchangeRate;
                 }
 
                 html += `
-                    <div class="flex items-center justify-between bg-[#313131] px-6 py-3 rounded-md cursor-pointer">
-                        <span onclick="openModal(${video.id}, '${video.name}', ${video.price}, '${video.currency}', ${video.people_count})">${video.name}</span>
-                        <div class="flex items-center gap-3">
-                            <span class="price-tag ${priceClass}" onclick="toggleCurrency(this, ${video.id})">${currencySymbol} ${video.price}</span>
-                            <button class="w-8 h-8 bg-[${isPaid ? '#9FFEBB' : '#FF696C'}] rounded-md" onclick="togglePaymentStatus(this, ${video.id})"></button>
+                    <div class="flex items-center group" draggable="true" data-video-id="${video.id}" data-order="${video.order}">
+                        <div class="text-gray-500 hover:text-gray-400 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity mr-[-20px] z-10">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9h8M8 15h8" />
+                            </svg>
                         </div>
-                    </div>
-                `;
+                        <div class="flex items-center justify-between bg-[#313131] px-6 py-3 rounded-md w-full">
+                            <div class="flex items-center gap-4 flex-1">
+                                <span class="cursor-pointer flex-1" onclick="showNotes('${video.id}', '${video.notes || ''}', '${video.name}', ${price}, '${video.currency}')">${video.name}</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="price-tag ${video.currency === 'USD' ? 'price-usd' : 'price-brl'}" 
+                                      onclick="toggleCurrency(this, ${video.id})">
+                                    ${video.currency === 'USD' ? 'U$' : 'R$'} ${price.toFixed(2)}
+                                </span>
+                                <button onclick="togglePaymentStatus(this, ${video.id})" 
+                                        class="w-8 h-8 ${video.is_paid == 1 ? 'bg-[#FF696C]' : 'bg-[#9FFEBB]'} rounded-md">
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
             });
 
             container.innerHTML = html;
             updateTotal(totalBRL, totalUSD);
+            initDragAndDrop();
         }
 
         function updateTotal(totalBRL, totalUSD) {
             const totalElement = document.getElementById('totalValue');
             const currentCurrency = totalElement.textContent.includes('R$') ? 'BRL' : 'USD';
-            totalElement.textContent = `${currentCurrency === 'BRL' ? 'R$' : 'U$'} ${(currentCurrency === 'BRL' ? totalBRL : totalUSD).toFixed(2)}`;
+            
+            totalElement.textContent = currentCurrency === 'BRL' 
+                ? `R$ ${totalBRL.toFixed(2)}` 
+                : `U$ ${totalUSD.toFixed(2)}`;
         }
 
         function toggleTotalCurrency() {
@@ -551,53 +598,67 @@
         async function saveNotes() {
             const videoId = document.getElementById('currentVideoId').value;
             const notes = document.getElementById('videoNotes').value;
+            const name = document.getElementById('modalVideoName').value;
+            const price = parseFloat(document.getElementById('modalBrlPrice').value);
+            const peopleCount = document.getElementById('modalPeopleCount').value;
             
             const formData = new FormData();
-            formData.append('action', 'save_notes');
+            formData.append('action', 'save_video_details');
             formData.append('video_id', videoId);
             formData.append('notes', notes);
+            formData.append('name', name);
+            formData.append('price', price);
+            formData.append('currency', 'BRL');
+            formData.append('people_count', peopleCount);
             
             try {
                 const response = await fetch('api.php', {
                     method: 'POST',
                     body: formData
                 });
+                
                 const data = await response.json();
                 if (data.success) {
                     document.getElementById('notesModal').classList.remove('active');
+                    await loadVideos(currentMonthIndex + 1, document.getElementById('yearSelect').value);
+                } else {
+                    alert('Erro ao salvar alterações');
                 }
             } catch (error) {
                 console.error('Erro:', error);
+                alert('Erro ao salvar alterações');
             }
         }
 
         async function toggleCurrency(element, videoId) {
-            const value = parseFloat(element.textContent.split(' ')[1]);
-            const isUSD = element.textContent.includes('U$');
-            const newCurrency = isUSD ? 'BRL' : 'USD';
+            const currentText = element.textContent.trim();
+            const currentValue = parseFloat(currentText.split(' ')[1]);
+            const isCurrentlyBRL = currentText.startsWith('R$');
+            
+            // Calcula o novo valor baseado na moeda atual
+            const newValue = isCurrentlyBRL ? (currentValue / exchangeRate) : (currentValue * exchangeRate);
+            const newCurrency = isCurrentlyBRL ? 'USD' : 'BRL';
             
             const formData = new FormData();
             formData.append('action', 'update_currency');
             formData.append('video_id', videoId);
             formData.append('currency', newCurrency);
-            formData.append('price', value);
+            formData.append('price', newValue.toFixed(2));
             
             try {
                 const response = await fetch('api.php', {
                     method: 'POST',
                     body: formData
                 });
+                
                 const data = await response.json();
                 if (data.success) {
-                    if (isUSD) {
-                        element.textContent = `R$ ${(value * exchangeRate).toFixed(2)}`;
-                        element.classList.remove('price-usd');
-                        element.classList.add('price-brl');
-                    } else {
-                        element.textContent = `U$ ${(value / exchangeRate).toFixed(2)}`;
-                        element.classList.remove('price-brl');
-                        element.classList.add('price-usd');
-                    }
+                    element.textContent = `${newCurrency === 'USD' ? 'U$' : 'R$'} ${newValue.toFixed(2)}`;
+                    element.classList.toggle('price-usd');
+                    element.classList.toggle('price-brl');
+                    
+                    // Atualiza os totais
+                    await loadVideos(currentMonthIndex + 1, document.getElementById('yearSelect').value);
                 }
             } catch (error) {
                 console.error('Erro:', error);
@@ -729,6 +790,169 @@
             } catch (error) {
                 console.error('Erro:', error);
                 alert('Erro ao excluir o vídeo');
+            }
+        }
+
+        function showNotes(videoId, notes, name, price, currency) {
+            document.getElementById('currentVideoId').value = videoId;
+            document.getElementById('videoNotes').value = notes || '';
+            document.getElementById('modalVideoName').value = name;
+            
+            // Definir valores iniciais
+            if (currency === 'BRL') {
+                document.getElementById('modalBrlPrice').value = price;
+                document.getElementById('modalUsdPrice').value = (price / exchangeRate).toFixed(2);
+            } else {
+                document.getElementById('modalUsdPrice').value = price;
+                document.getElementById('modalBrlPrice').value = (price * exchangeRate).toFixed(2);
+            }
+            
+            document.getElementById('notesModal').classList.add('active');
+        }
+
+        function updateUsdFromBrl() {
+            const brlPrice = parseFloat(document.getElementById('modalBrlPrice').value) || 0;
+            document.getElementById('modalUsdPrice').value = (brlPrice / exchangeRate).toFixed(2);
+        }
+
+        function updateBrlFromUsd() {
+            const usdPrice = parseFloat(document.getElementById('modalUsdPrice').value) || 0;
+            document.getElementById('modalBrlPrice').value = (usdPrice * exchangeRate).toFixed(2);
+        }
+
+        async function switchMonth(direction) {
+            const container = document.getElementById('videosContainer');
+            const yearSelect = document.getElementById('yearSelect');
+            const currentYear = yearSelect ? yearSelect.value : new Date().getFullYear();
+            
+            // Adiciona classe para animação
+            container.style.opacity = '0';
+            container.classList.add(direction === 'next' ? 'slide-left' : 'slide-right');
+            
+            // Atualiza o índice do mês
+            currentMonthIndex = direction === 'next' 
+                ? (currentMonthIndex + 1) % 12 
+                : (currentMonthIndex - 1 + 12) % 12;
+            
+            // Aguarda a animação
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Carrega os novos dados
+            await loadVideos(currentMonthIndex + 1, currentYear);
+            
+            // Reset da posição para nova animação
+            container.classList.remove('slide-left', 'slide-right');
+            container.style.opacity = '1';
+            
+            // Atualiza o título do mês
+            updateMonthTitle();
+        }
+
+        function initDragAndDrop() {
+            const container = document.getElementById('videosContainer');
+            const items = container.querySelectorAll('[draggable="true"]');
+
+            items.forEach(item => {
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragend', handleDragEnd);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('drop', handleDrop);
+            });
+        }
+
+        let draggedItem = null;
+
+        function handleDragStart(e) {
+            draggedItem = this;
+            this.style.opacity = '0.4';
+            
+            // Adiciona linhas de separação entre os itens
+            const items = document.getElementById('videosContainer').children;
+            Array.from(items).forEach((item, index) => {
+                if (item !== draggedItem) {
+                    const line = document.createElement('div');
+                    line.className = 'drag-line';
+                    item.parentNode.insertBefore(line, item);
+                    
+                    // Mostra a linha com um pequeno delay
+                    setTimeout(() => line.style.opacity = '1', 50);
+                }
+            });
+            
+            // Adiciona uma linha final
+            const lastLine = document.createElement('div');
+            lastLine.className = 'drag-line';
+            draggedItem.parentNode.appendChild(lastLine);
+            setTimeout(() => lastLine.style.opacity = '1', 50);
+        }
+
+        function handleDragEnd(e) {
+            this.style.opacity = '1';
+            draggedItem = null;
+            
+            // Remove todas as linhas de separação
+            const lines = document.getElementsByClassName('drag-line');
+            while (lines.length > 0) {
+                lines[0].remove();
+            }
+
+            // Atualiza a ordem após o drop
+            updateOrder();
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            // Destaca a linha mais próxima
+            const lines = document.getElementsByClassName('drag-line');
+            Array.from(lines).forEach(line => {
+                const rect = line.getBoundingClientRect();
+                const distance = Math.abs(e.clientY - (rect.top + rect.height/2));
+                line.style.opacity = distance < 20 ? '1' : '0.3';
+            });
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            if (this === draggedItem) return;
+
+            const container = document.getElementById('videosContainer');
+            const items = [...container.children];
+            const fromIndex = items.indexOf(draggedItem);
+            const toIndex = items.indexOf(this);
+
+            if (fromIndex < toIndex) {
+                this.parentNode.insertBefore(draggedItem, this.nextSibling);
+            } else {
+                this.parentNode.insertBefore(draggedItem, this);
+            }
+
+            await updateOrder();
+        }
+
+        async function updateOrder() {
+            const items = document.getElementById('videosContainer').children;
+            const orders = Array.from(items).map((item, index) => ({
+                id: item.dataset.videoId,
+                order: index
+            }));
+
+            const formData = new FormData();
+            formData.append('action', 'update_order');
+            formData.append('orders', JSON.stringify(orders));
+
+            try {
+                const response = await fetch('api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Erro ao atualizar ordem');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
             }
         }
     </script>
